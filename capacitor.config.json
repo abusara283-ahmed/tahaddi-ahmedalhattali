@@ -1,0 +1,7 @@
+{
+  "appId": "om.ahmed.tahaddi",
+  "appName": "تحدّي العباقرة",
+  "webDir": "www",
+  "android": {"allowMixedContent": false, "captureInput": true, "webContentsDebuggingEnabled": false, "backgroundColor": "#0a0f24"},
+  "server": {"androidScheme": "https"}
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">تحدّي العباقرة</string>
+    <string name="title_activity_main">تحدّي العباقرة</string>
+    <string name="package_name">om.ahmed.tahaddi</string>
+    <string name="custom_url_scheme">om.ahmed.tahaddi</string>
+</resources>

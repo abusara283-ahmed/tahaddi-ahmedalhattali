@@ -1,0 +1,119 @@
+package om.ahmed.tahaddi;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
+import android.provider.MediaStore;
+import android.util.Base64;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Toast;
+
+import com.getcapacitor.BridgeActivity;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+
+/* تحدّي العباقرة – يضيف للتطبيق: حفظ الملفات (SCORM وغيرها) في مجلد التنزيلات، والطباعة أو الحفظ PDF */
+public class MainActivity extends BridgeActivity {
+    private WebView printView;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        WebView wv = getBridge().getWebView();
+        wv.getSettings().setTextZoom(100);
+        wv.addJavascriptInterface(new AndroidSave(this), "AndroidSave");
+    }
+
+    /* زر الرجوع: يعود إلى الشاشة الرئيسية داخل المسابقة، ومن الرئيسية يغلق التطبيق */
+    @Override
+    public void onBackPressed() {
+        WebView wv = getBridge().getWebView();
+        wv.evaluateJavascript("(window.apkBack && window.apkBack()) ? '1' : '0'", v -> {
+            if (!"\"1\"".equals(v)) MainActivity.super.onBackPressed();
+        });
+    }
+
+    public class AndroidSave {
+        private final Context ctx;
+        AndroidSave(Context c) { ctx = c; }
+
+        @JavascriptInterface
+        public String save(String name, String b64, String mime) {
+            try {
+                byte[] data = Base64.decode(b64, Base64.DEFAULT);
+                if (mime == null || mime.isEmpty()) mime = "application/octet-stream";
+                String where;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                    v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                    v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/تحدي العباقرة");
+                    Uri uri = ctx.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (uri == null) throw new Exception("no uri");
+                    try (OutputStream os = ctx.getContentResolver().openOutputStream(uri)) { os.write(data); }
+                    where = "التنزيلات ← تحدي العباقرة";
+                } else {
+                    File dir = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "");
+                    dir.mkdirs();
+                    File f = new File(dir, name);
+                    try (FileOutputStream os = new FileOutputStream(f)) { os.write(data); }
+                    where = f.getAbsolutePath();
+                }
+                final String msg = "حُفظ الملف في: " + where;
+                runOnUiThread(() -> Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show());
+                return "ok";
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(ctx, "تعذّر حفظ الملف", Toast.LENGTH_LONG).show());
+                return "error";
+            }
+        }
+
+        @JavascriptInterface
+        public void print(String html, String title) {
+            runOnUiThread(() -> {
+                /* WebView مخصص للطباعة يُلحق بالشاشة (مخفياً خلف التطبيق) ليُرسَم كاملاً قبل فتح شاشة الطباعة/الحفظ PDF */
+                ViewGroup root = findViewById(android.R.id.content);
+                if (printView != null) {
+                    try { root.removeView(printView); printView.destroy(); } catch (Exception ignored) { }
+                }
+                final WebView pv = new WebView(MainActivity.this);
+                printView = pv;
+                pv.getSettings().setJavaScriptEnabled(true);
+                pv.getSettings().setTextZoom(100);
+                pv.setVisibility(View.INVISIBLE);
+                root.addView(pv, 0, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                final boolean[] done = {false};
+                pv.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(WebView view, String url) {
+                        if (done[0]) return;
+                        done[0] = true;
+                        view.postDelayed(() -> {
+                            try {
+                                PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                                String job = (title == null || title.isEmpty()) ? "تحدّي العباقرة" : title;
+                                PrintDocumentAdapter ad = view.createPrintDocumentAdapter(job);
+                                pm.print(job, ad, new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+                            } catch (Exception e) {
+                                Toast.makeText(ctx, "تعذّرت الطباعة، حاول مرة أخرى", Toast.LENGTH_LONG).show();
+                            }
+                        }, 900);
+                    }
+                });
+                pv.loadDataWithBaseURL("https://localhost/", html, "text/html", "utf-8", null);
+            });
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "tahaddi-apk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "تحدّي العباقرة – تطبيق أندرويد (APK) لمسابقات الرياضيات والمسابقات الدينية",
+  "scripts": {"sync": "cap sync android", "www": "python3 tools/prepare_www.py"},
+  "dependencies": {"@capacitor/android": "6.2.1", "@capacitor/core": "6.2.1"},
+  "devDependencies": {"@capacitor/cli": "6.2.1"}
+}
